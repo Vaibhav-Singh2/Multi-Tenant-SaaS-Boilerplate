@@ -9,7 +9,7 @@ const logger = createLogger("email-processor");
  * Supports: Resend, SendGrid, Nodemailer, AWS SES, etc.
  */
 export async function emailProcessor(job: Job<EmailJobPayload>): Promise<void> {
-  const { to, subject, html, _text, tenantId } = job.data;
+  const { to, subject, html, text, tenantId } = job.data;
 
   logger.info("Processing email job", { to, subject, tenantId });
 
