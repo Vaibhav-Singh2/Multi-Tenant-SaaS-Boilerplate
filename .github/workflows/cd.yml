@@ -6,7 +6,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
   API_IMAGE: saas-api
   WORKER_IMAGE: saas-worker
 
