@@ -1,135 +1,200 @@
-# Turborepo starter
+# Multi-Tenant SaaS Boilerplate
 
-This Turborepo starter is maintained by the Turborepo core team.
+A production-ready, multi-tenant SaaS boilerplate built on **Turborepo** with **Bun** as the package manager.
 
-## Using this example
-
-Run the following command:
-
-```sh
-npx create-turbo@latest
-```
-
-## What's inside?
-
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+## Architecture
 
 ```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+┌──────────────────────────────────────────────────────────────┐
+│                        Internet                              │
+│                           │                                  │
+│                    ALB / Nginx                               │
+│                           │                                  │
+│          ┌────────────────┴────────────────┐                │
+│          │                                 │                │
+│   ┌──────▼──────┐                  ┌───────▼──────┐        │
+│   │  apps/api   │                  │ apps/worker  │        │
+│   │  Express    │                  │   BullMQ     │        │
+│   └──────┬──────┘                  └───────┬──────┘        │
+│          │                                 │                │
+│          └────────────┬────────────────────┘                │
+│                       │                                     │
+│          ┌────────────┼────────────┐                        │
+│          │            │            │                        │
+│   ┌──────▼──┐  ┌──────▼──┐  ┌─────▼──────┐                │
+│   │Postgres │  │  Redis  │  │Prometheus  │                │
+│   │(tenant  │  │(ratelim │  │ + Grafana  │                │
+│   │schemas) │  │+ queue) │  │ + Loki     │                │
+│   └─────────┘  └─────────┘  └────────────┘                │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## Tech Stack
+
+| Layer             | Technology                          |
+| ----------------- | ----------------------------------- |
+| Monorepo          | Turborepo + Bun                     |
+| API Server        | Express.js                          |
+| ORM               | Drizzle ORM (postgres.js)           |
+| Multi-tenancy     | PostgreSQL schema-per-tenant        |
+| Rate Limiting     | Redis sliding window                |
+| Background Jobs   | BullMQ                              |
+| Logging           | Winston → Loki (via Promtail)       |
+| Metrics           | Prometheus + Grafana                |
+| Unit Tests        | Vitest                              |
+| Integration Tests | Supertest + Testcontainers          |
+| Load Tests        | k6                                  |
+| CI/CD             | GitHub Actions                      |
+| Deployment        | AWS ECS Fargate + RDS + ElastiCache |
+
+## Monorepo Structure
 
 ```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+├── apps/
+│   ├── api/           # Express REST API
+│   └── worker/        # BullMQ background jobs
+├── packages/
+│   ├── config/        # Zod env validation
+│   ├── types/         # Shared TypeScript interfaces
+│   ├── logger/        # Winston + prom-client
+│   ├── database/      # Drizzle ORM + tenant isolation
+│   ├── redis/         # ioredis + rate limiter + cache
+│   ├── auth/          # API key + JWT utilities
+│   ├── queue/         # BullMQ queue definitions
+│   └── testing/       # Testcontainers + Faker + matchers
+├── docker/
+│   ├── docker-compose.yml
+│   └── observability/ # Prometheus, Loki, Promtail, Grafana
+├── tests/
+│   └── load/          # k6 load test scripts
+├── .github/workflows/ # CI + CD
+└── docs/
+    └── aws-deployment.md
 ```
 
-### Develop
+## Quick Start
 
-To develop all apps and packages, run the following command:
+### 1. Prerequisites
 
-```
-cd my-turborepo
+- [Bun](https://bun.sh) >= 1.3.8
+- [Docker](https://docker.com) >= 24
+- [Node.js](https://nodejs.org) >= 22
 
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+### 2. Install dependencies
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+```bash
+bun install
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+### 3. Configure environment
 
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+```bash
+cp apps/api/.env.example apps/api/.env
+cp apps/worker/.env.example apps/worker/.env
+# Edit .env files with your configuration
 ```
 
-### Remote Caching
+### 4. Start all services (Docker)
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+```bash
+bun run docker:up
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+This starts: **Postgres**, **Redis**, **API** (port 3000), **Worker**, **Prometheus** (9090), **Loki** (3100), **Grafana** (3001).
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+### 5. Run database migrations
 
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+```bash
+bun run db:migrate
 ```
 
-## Useful Links
+### 6. Create your first tenant
 
-Learn more about the power of Turborepo:
+```bash
+curl -X POST http://localhost:3000/admin/tenants \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Secret: change-me-admin-secret" \
+  -d '{"name": "Acme Corp", "slug": "acme"}'
+```
 
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+Response includes a one-time `plainKey` — save it!
+
+### 7. Make authenticated requests
+
+```bash
+curl http://localhost:3000/api/v1/usage \
+  -H "X-API-Key: sk_<your-key>"
+```
+
+## API Endpoints
+
+### Admin (requires `X-Admin-Secret` header)
+
+| Method   | Path                            | Description              |
+| -------- | ------------------------------- | ------------------------ |
+| `POST`   | `/admin/tenants`                | Create tenant + API key  |
+| `GET`    | `/admin/tenants`                | List all tenants         |
+| `GET`    | `/admin/tenants/:id`            | Get tenant details       |
+| `DELETE` | `/admin/tenants/:id`            | Delete tenant + schema   |
+| `POST`   | `/admin/tenants/:id/rotate-key` | Rotate API key           |
+| `GET`    | `/admin/queues`                 | Bull Board job dashboard |
+
+### Tenant API (requires `X-API-Key` header)
+
+| Method | Path                    | Description                           |
+| ------ | ----------------------- | ------------------------------------- |
+| `GET`  | `/api/v1/usage`         | Usage summary (+ `?from=&to=` dates)  |
+| `GET`  | `/api/v1/usage/records` | Recent usage records                  |
+| `POST` | `/webhooks/inbound`     | Receive webhook (queued for delivery) |
+| `GET`  | `/health`               | Liveness + readiness check            |
+| `GET`  | `/metrics`              | Prometheus metrics                    |
+
+## Multi-Tenancy
+
+Schema-based isolation — every tenant gets a dedicated PostgreSQL schema (`tenant_<slug>`) created on signup. API keys are hashed with SHA-256 and stored in the `public` schema. The `X-API-Key` header is resolved to a tenant on every request.
+
+## Rate Limiting
+
+Sliding window algorithm using Redis sorted sets (`ZADD` + `ZRANGEBYSCORE`). Limits are configurable per-tenant (`rateLimitPerMinute`). Rate limit headers are returned on every response:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1708000000
+```
+
+Returns `429 Too Many Requests` when exceeded.
+
+## Observability
+
+| Service    | URL                                | Credentials   |
+| ---------- | ---------------------------------- | ------------- |
+| Grafana    | http://localhost:3001              | admin / admin |
+| Prometheus | http://localhost:9090              | —             |
+| Loki       | http://localhost:3100              | (via Grafana) |
+| Bull Board | http://localhost:3000/admin/queues | —             |
+
+## Testing
+
+```bash
+# Unit tests (auth package)
+bun run test --filter=@saas/auth
+
+# Integration tests (Redis ratelimit with real container)
+bun run test --filter=@saas/redis
+
+# All tests
+bun run test
+
+# Load tests (requires k6)
+k6 run tests/load/smoke.js --env API_URL=http://localhost:3000
+k6 run tests/load/ratelimit.js --env API_URL=http://localhost:3000 --env API_KEY=sk_xxx
+```
+
+## Deployment
+
+See [docs/aws-deployment.md](./docs/aws-deployment.md) for full AWS ECS Fargate deployment guide.
+
+## License
+
+MIT

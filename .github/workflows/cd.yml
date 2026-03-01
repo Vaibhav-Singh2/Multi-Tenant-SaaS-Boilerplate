@@ -1,0 +1,99 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+  API_IMAGE: saas-api
+  WORKER_IMAGE: saas-worker
+
+jobs:
+  deploy:
+    name: Build & Deploy to AWS ECS
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push API image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$API_IMAGE:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$API_IMAGE:latest \
+            -f apps/api/Dockerfile .
+          docker push $ECR_REGISTRY/$API_IMAGE:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$API_IMAGE:latest
+          echo "api_image=$ECR_REGISTRY/$API_IMAGE:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        id: build-api
+
+      - name: Build, tag, and push Worker image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$WORKER_IMAGE:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$WORKER_IMAGE:latest \
+            -f apps/worker/Dockerfile .
+          docker push $ECR_REGISTRY/$WORKER_IMAGE:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$WORKER_IMAGE:latest
+          echo "worker_image=$ECR_REGISTRY/$WORKER_IMAGE:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        id: build-worker
+
+      - name: Download API task definition
+        run: |
+          aws ecs describe-task-definition --task-definition saas-api \
+            --query taskDefinition > api-task-def.json
+
+      - name: Download Worker task definition
+        run: |
+          aws ecs describe-task-definition --task-definition saas-worker \
+            --query taskDefinition > worker-task-def.json
+
+      - name: Update API task definition with new image
+        id: update-api-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: api-task-def.json
+          container-name: api
+          image: ${{ steps.build-api.outputs.api_image }}
+
+      - name: Update Worker task definition with new image
+        id: update-worker-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: worker-task-def.json
+          container-name: worker
+          image: ${{ steps.build-worker.outputs.worker_image }}
+
+      - name: Deploy API to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.update-api-task.outputs.task-definition }}
+          service: saas-api
+          cluster: saas-cluster
+          wait-for-service-stability: true
+
+      - name: Deploy Worker to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.update-worker-task.outputs.task-definition }}
+          service: saas-worker
+          cluster: saas-cluster
+          wait-for-service-stability: true

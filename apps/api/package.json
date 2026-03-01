@@ -1,0 +1,45 @@
+{
+  "name": "@saas/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --project tsconfig.build.json",
+    "start": "node dist/index.js",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@bull-board/express": "^6.10.2",
+    "@bull-board/api": "^6.10.2",
+    "@saas/auth": "*",
+    "@saas/config": "*",
+    "@saas/database": "*",
+    "@saas/logger": "*",
+    "@saas/queue": "*",
+    "@saas/redis": "*",
+    "@saas/types": "*",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "cors": "^2.8.5",
+    "express-rate-limit": "^7.5.0",
+    "drizzle-orm": "^0.40.0",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@saas/testing": "*",
+    "@saas/typescript-config": "*",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.9",
+    "supertest": "^7.1.0",
+    "@types/supertest": "^6.0.2",
+    "tsx": "^4.19.3",
+    "typescript": "5.9.2",
+    "vitest": "^3.0.7",
+    "@saas/eslint-config": "*",
+    "eslint": "9.21.0",
+    "typescript-eslint": "^8.24.1"
+  }
+}

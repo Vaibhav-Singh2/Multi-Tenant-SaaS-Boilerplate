@@ -1,0 +1,11 @@
+[install]
+# Do not run postinstall scripts for problematic native packages
+# cpu-features has a broken build script on Windows/Node 24
+ignore-scripts = false
+
+[install.scopes]
+# Workspace-internal packages
+"@saas" = { lockfile = false }
+
+[install.cache]
+disable = false
